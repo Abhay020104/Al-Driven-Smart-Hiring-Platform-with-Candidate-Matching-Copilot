@@ -29,12 +29,6 @@ def seed_database(db: Session) -> None:
                 hashed_password=hash_password("recruiter123"),
                 role="recruiter",
             ),
-            User(
-                name="Demo Candidate",
-                email="candidate@example.com",
-                hashed_password=hash_password("candidate123"),
-                role="candidate",
-            ),
         ]
         db.add_all(users)
         db.commit()

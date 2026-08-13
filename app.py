@@ -3100,9 +3100,7 @@ def show_profile_dialog(user_name, user_role):
         new_name = st.text_input("Full Name", value=user_name)
         st.text_input("Phone Number", value="+1 (555) 123-4567")
     with col2:
-        roles = ["Candidate", "Recruiter", "Admin", "Hiring Manager"]
-        idx = roles.index(user_role.title()) if user_role.title() in roles else 0
-        st.selectbox("Role", roles, index=idx, disabled=True)
+        st.selectbox("Role", ["Recruiter"], index=0, disabled=True)
         st.text_input("Location", value="New York, NY")
     
     st.text_area("Professional Bio", value="Experienced professional passionate about building great teams and leveraging AI in HR.", height=100)
@@ -3195,41 +3193,18 @@ def render_sidebar() -> str:
 
     st.sidebar.title("AI-Driven Smart Hiring Platform Copilot")
 
-    # Role-gated menu items
-    if user_role == "candidate":
-        pages = [
-            "🏠 Browse Jobs",
-            "📄 My Applications",
-            "📤 Upload Resume",
-            "🤖 Chat with AI",
-        ]
-    elif user_role != "candidate":
-        # Legacy recruiter accounts are treated as admin
-        pages = [
-            "🏠 Overview",
-            "📋 JD Analyser",
-            "🔍 Find Candidates",
-            "📄 Resume AI",
-            "🗓️ Interviews",
-            "🎓 Onboarding",
-            "📊 Recruitment Insights",
-            "📧 Communications",
-            "📑 Reports",
-            "🤖 Chat with AI",
-        ]
-    else:  # admin
-        pages = [
-            "🏠 Overview",
-            "📋 JD Analyser",
-            "🔍 Find Candidates",
-            "📄 Resume AI",
-            "🗓️ Interviews",
-            "🎓 Onboarding",
-            "📊 Recruitment Insights",
-            "📧 Communications",
-            "📑 Reports",
-            "🤖 Chat with AI",
-        ]
+    pages = [
+        "🏠 Overview",
+        "📋 JD Analyser",
+        "🔍 Find Candidates",
+        "📄 Resume AI",
+        "🗓️ Interviews",
+        "🎓 Onboarding",
+        "📊 Recruitment Insights",
+        "📧 Communications",
+        "📑 Reports",
+        "🤖 Chat with AI",
+    ]
 
     page = st.sidebar.radio("Main menu", pages, label_visibility="collapsed")
 

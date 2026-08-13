@@ -1,5 +1,5 @@
 """
-User model — supports Candidate, Recruiter, and Recruiter roles.
+User model — Recruiter role.
 """
 
 from datetime import datetime, timezone
