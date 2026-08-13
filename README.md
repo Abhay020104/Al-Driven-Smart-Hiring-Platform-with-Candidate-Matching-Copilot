@@ -1,6 +1,6 @@
 # AI-Driven Smart Hiring Platform Copilot
 
-An AI-powered end-to-end recruitment platform built with **Streamlit** (frontend) and **FastAPI** (backend), integrated with **Ollama / Llama 3.2** for local AI inference — zero cloud API costs.
+An AI-powered end-to-end recruitment platform built with **Streamlit** (frontend) and **FastAPI** (backend), integrated with **Ollama / Llama 3.2** for local AI inference — zero cloud API costs. Designed as a **Recruiter-focused copilot** for managing the full hiring pipeline.
 
 ## Architecture
 
@@ -67,34 +67,26 @@ streamlit run app.py
 | Swagger   | http://localhost:8000/docs    |
 | ReDoc     | http://localhost:8000/redoc   |
 
-## Default Demo Accounts
+## Default Demo Account
 
 | Role      | Email                   | Password       |
 |-----------|-------------------------|----------------|
 | Recruiter | recruiter@infosys.com   | recruiter123   |
-| Candidate | candidate@example.com   | candidate123   |
 
 ## Features
 
-### Role-Based Access (RBAC)
+### Recruiter Dashboard (10 modules)
 
-**Candidate Portal:**
-- 🏠 Browse Jobs — view open positions with skills, location & salary band
-- 📄 My Applications — track submitted applications and their stages
-- 📤 Upload Resume — upload PDF/DOCX/TXT, AI extracts text automatically
-- 🤖 Chat with AI — recruitment-scoped AI copilot
-
-**Recruiter Dashboard (10 modules):**
-- 🏠 Overview — real-time pipeline metrics, KPI cards, active roles overview
-- 📋 JD Analyser — paste a job description, AI extracts skills, seniority, flags & rewrites it
-- 🔍 Find Candidates — filter by role/stage/match, AI hiring recommendations, comparisons
-- 📄 Resume AI — upload resumes, AI parses skills & scores against open roles
-- 🗓️ Interviews — schedule & track multi-stage interviews and generate AI-driven technical tests
-- 🎓 Onboarding — convert hired candidates with AI document verification
-- 📊 Recruitment Insights — funnel analytics, pipeline velocity, interactive Plotly charts
-- 📧 Communications — AI-generated emails (offer, rejection, follow-up, interview invite)
-- 📑 Reports — AI-generated recruitment reports with executive summaries
-- 🤖 Chat with AI — context-aware recruiter assistant with full pipeline data
+- 🏠 **Overview** — real-time pipeline metrics, KPI cards, active roles overview
+- 📋 **JD Analyser** — paste a job description, AI extracts skills, seniority, flags & rewrites it
+- 🔍 **Find Candidates** — filter by role/stage/match, AI hiring recommendations, comparisons
+- 📄 **Resume AI** — upload resumes, AI parses skills & scores against open roles
+- 🗓️ **Interviews** — schedule & track multi-stage interviews and generate AI-driven technical tests
+- 🎓 **Onboarding** — convert hired candidates with AI document verification
+- 📊 **Recruitment Insights** — funnel analytics, pipeline velocity, interactive Plotly charts
+- 📧 **Communications** — AI-generated emails (offer, rejection, follow-up, interview invite)
+- 📑 **Reports** — AI-generated recruitment reports with executive summaries
+- 🤖 **Chat with AI** — context-aware recruiter assistant with full pipeline data
 
 ### AI Capabilities (Powered by Llama 3.2 via Ollama)
 
@@ -103,7 +95,7 @@ streamlit run app.py
 | JD Analysis            | Extracts skills, seniority, experience, red flags, salary & rewrites JD  |
 | Resume Parsing         | Local keyword extraction for skills, education, certifications, experience |
 | Resume Scoring         | LLM matches candidate skills vs role requirements with % score & verdict |
-| AI Chat Copilot        | Role-aware contextual assistant, strictly scoped to HR/recruitment topics |
+| AI Chat Copilot        | Context-aware assistant, strictly scoped to HR/recruitment topics        |
 | Email Generation       | Professional emails (offer, rejection, follow-up) tailored per candidate |
 | Hiring Recommendation  | Verdict (Recommend/Waitlist/Decline) with confidence & rationale         |
 | Report Generation      | Markdown reports: executive summary, metrics, bottlenecks, recommendations |
@@ -113,12 +105,12 @@ streamlit run app.py
 ## API Endpoints
 
 ### Auth (`/api/auth`)
-| Endpoint               | Method | Auth       | Description               |
-|------------------------|--------|------------|---------------------------|
-| `/api/auth/register`   | POST   | Public     | Create account            |
-| `/api/auth/login`      | POST   | Public     | Login, get JWT token      |
-| `/api/auth/me`         | GET    | Any role   | Current user profile      |
-| `/api/auth/users`      | GET    | Recruiter  | List all users            |
+| Endpoint               | Method | Auth          | Description               |
+|------------------------|--------|---------------|---------------------------|
+| `/api/auth/register`   | POST   | Public        | Create account            |
+| `/api/auth/login`      | POST   | Public        | Login, get JWT token      |
+| `/api/auth/me`         | GET    | Authenticated | Current user profile      |
+| `/api/auth/users`      | GET    | Recruiter     | List all users            |
 
 ### Roles (`/api/roles`)
 | Endpoint               | Method | Auth       | Description               |
@@ -131,26 +123,26 @@ streamlit run app.py
 | `/api/roles/{id}`      | DELETE | Recruiter  | Delete role               |
 
 ### Candidates (`/api/candidates`)
-| Endpoint                          | Method | Auth       | Description               |
-|-----------------------------------|--------|------------|---------------------------|
-| `/api/candidates`                 | GET    | Recruiter  | All candidates (filterable by role/stage) |
-| `/api/candidates/{id}`            | GET    | Recruiter  | Single candidate detail   |
-| `/api/candidates`                 | POST   | Recruiter  | Create candidate          |
-| `/api/candidates/{id}`            | PUT    | Recruiter  | Update candidate          |
-| `/api/candidates/{id}`            | DELETE | Recruiter  | Delete candidate          |
-| `/api/candidates/apply`           | POST   | Any role   | Self-service job apply    |
-| `/api/candidates/my-applications` | GET    | Any role   | Own applications          |
+| Endpoint                          | Method | Auth          | Description                          |
+|-----------------------------------|--------|---------------|--------------------------------------|
+| `/api/candidates`                 | GET    | Recruiter     | All candidates (filterable by role/stage) |
+| `/api/candidates/{id}`            | GET    | Recruiter     | Single candidate detail              |
+| `/api/candidates`                 | POST   | Recruiter     | Create candidate                     |
+| `/api/candidates/{id}`            | PUT    | Recruiter     | Update candidate                     |
+| `/api/candidates/{id}`            | DELETE | Recruiter     | Delete candidate                     |
+| `/api/candidates/apply`           | POST   | Authenticated | Self-service job apply               |
+| `/api/candidates/my-applications` | GET    | Authenticated | Own applications                     |
 
 ### AI (`/api/ai`)
-| Endpoint                          | Method | Auth       | Description               |
-|-----------------------------------|--------|------------|---------------------------|
-| `/api/ai/analyse-jd`             | POST   | Recruiter  | Analyze job description   |
-| `/api/ai/parse-resume`           | POST   | Any role   | Extract skills from text  |
-| `/api/ai/score-resume`           | POST   | Recruiter  | Score resume vs role      |
-| `/api/ai/chat`                   | POST   | Any role   | AI copilot chat           |
-| `/api/ai/generate-email`        | POST   | Recruiter  | Generate recruitment email |
-| `/api/ai/hiring-recommendation` | POST   | Recruiter  | AI hiring recommendation  |
-| `/api/ai/generate-report`       | POST   | Recruiter  | Generate recruitment report |
+| Endpoint                          | Method | Auth          | Description               |
+|-----------------------------------|--------|---------------|---------------------------|
+| `/api/ai/analyse-jd`             | POST   | Recruiter     | Analyze job description   |
+| `/api/ai/parse-resume`           | POST   | Authenticated | Extract skills from text  |
+| `/api/ai/score-resume`           | POST   | Recruiter     | Score resume vs role      |
+| `/api/ai/chat`                   | POST   | Authenticated | AI copilot chat           |
+| `/api/ai/generate-email`        | POST   | Recruiter     | Generate recruitment email |
+| `/api/ai/hiring-recommendation` | POST   | Recruiter     | AI hiring recommendation  |
+| `/api/ai/generate-report`       | POST   | Recruiter     | Generate recruitment report |
 
 ### AI Interview (`/api/ai-interview`)
 | Endpoint                                   | Method | Auth       | Description               |
@@ -162,10 +154,10 @@ streamlit run app.py
 | `/api/ai-interview/report/{interview_id}`  | GET    | Recruiter  | View test report          |
 
 ### Uploads (`/api/uploads`)
-| Endpoint                        | Method | Auth       | Description               |
-|---------------------------------|--------|------------|---------------------------|
-| `/api/uploads/resume`           | POST   | Any role   | Upload resume (PDF/DOCX/TXT) |
-| `/api/uploads/resume/{filename}`| GET    | Recruiter  | Download uploaded resume  |
+| Endpoint                        | Method | Auth          | Description               |
+|---------------------------------|--------|---------------|---------------------------|
+| `/api/uploads/resume`           | POST   | Authenticated | Upload resume (PDF/DOCX/TXT) |
+| `/api/uploads/resume/{filename}`| GET    | Recruiter     | Download uploaded resume  |
 
 ### Onboarding (`/api/onboarding`)
 | Endpoint                            | Method | Auth       | Description                    |
@@ -176,7 +168,7 @@ streamlit run app.py
 ## Project Structure
 
 ```
-├── app.py                     # Streamlit frontend (10 modules)
+├── app.py                     # Streamlit frontend (recruiter dashboard)
 ├── style.css                  # Custom CSS theme 
 ├── start.py                   # Unified launcher (backend + frontend)
 ├── requirements.txt           # Python dependencies
@@ -199,7 +191,7 @@ streamlit run app.py
     │   └── dependencies.py    # get_current_user, require_role
     ├── models/
     │   ├── __init__.py        # Exports: User, Role, Candidate
-    │   ├── user.py            # User model (candidate | recruiter)
+    │   ├── user.py            # User model (recruiter role)
     │   ├── role.py            # Role / job requisition model
     │   ├── candidate.py       # Candidate model (20+ fields)
     │   ├── ai_interview.py    # AI Interview model
@@ -215,7 +207,7 @@ streamlit run app.py
     │   ├── __init__.py
     │   ├── auth.py            # Register, login, profile, user list
     │   ├── roles.py           # Full CRUD + public listing
-    │   ├── candidates.py      # Full CRUD + self-service apply + my-applications
+    │   ├── candidates.py      # Full CRUD for recruiter + self-service apply
     │   ├── ai.py              # 7 AI endpoints
     │   ├── ai_interview.py    # AI Interview endpoints
     │   ├── uploads.py         # Resume upload & download
@@ -248,7 +240,7 @@ Copy `.env.example` to `.env` and configure:
 
 | Table        | Key Fields                                                                 |
 |-------------|----------------------------------------------------------------------------|
-| `users`      | id, name, email, hashed_password, role (candidate/recruiter), is_active   |
+| `users`      | id, name, email, hashed_password, role (recruiter), is_active             |
 | `roles`        | id, req_id, role, business_unit, location, openings, applicants, screened, shortlisted, interview, offer, hired, days_open, risk, priority, required_skills, experience_min, salary_band |
 | `candidates`   | id, user_id, candidate, role, location, experience, match, skills_match, stage, availability, salary_fit, risk, skills, source, education, certifications, summary, resume_filename |
 | `ai_interviews`| id, token, candidate_id, role_id, jd_skills, difficulty, focus_area, num_questions, questions, answers, report, status |
@@ -267,9 +259,4 @@ All tables include `created_at` and `updated_at` timestamps.
 | **File Parsing**| PyPDF2 ≥ 3.0, python-docx ≥ 1.1                     |
 | **Config**     | pydantic-settings, python-dotenv                      |
 
-## Demo Data
 
-On first startup, the backend seeds:
-- **3 users** — Admin (recruiter), Sarah Jenkins (recruiter), Demo Candidate
-- **6 job roles** — Generative AI Engineer, Cloud Data Architect, Cybersecurity Consultant, SAP SuccessFactors Lead, QA Automation Specialist, Talent Analytics Manager
-- **10 candidates** — across all roles with realistic profiles, skills & match scores
