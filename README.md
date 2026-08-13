@@ -267,9 +267,4 @@ All tables include `created_at` and `updated_at` timestamps.
 | **File Parsing**| PyPDF2 ≥ 3.0, python-docx ≥ 1.1                     |
 | **Config**     | pydantic-settings, python-dotenv                      |
 
-## Demo Data
 
-On first startup, the backend seeds:
-- **3 users** — Admin (recruiter), Sarah Jenkins (recruiter), Demo Candidate
-- **6 job roles** — Generative AI Engineer, Cloud Data Architect, Cybersecurity Consultant, SAP SuccessFactors Lead, QA Automation Specialist, Talent Analytics Manager
-- **10 candidates** — across all roles with realistic profiles, skills & match scores
