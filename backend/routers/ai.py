@@ -122,8 +122,7 @@ async def generate_report(
     total_app = sum(r.applicants for r in roles)
     total_hire = sum(r.hired for r in roles)
 
-    from backend.models.candidate import Candidate as CandModel
-    candidates = db.query(CandModel).all()
+    candidates = db.query(Candidate).all()
     avg_match = round(sum(c.match for c in candidates) / max(len(candidates), 1), 1)
 
     roles_data = {

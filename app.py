@@ -4,9 +4,9 @@ import json
 import os
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
-from html import escape
+
 from textwrap import dedent
-from typing import Iterable
+
 
 import dotenv
 import pandas as pd
@@ -229,13 +229,6 @@ def skill_list(candidates: pd.DataFrame) -> list[str]:
     return sorted(skills)
 
 
-def html_table(df: pd.DataFrame, columns: Iterable[str]) -> str:
-    rows = []
-    for _, row in df.iterrows():
-        cells = "".join(f"<td>{row[column]}</td>" for column in columns)
-        rows.append(f"<tr>{cells}</tr>")
-    headers = "".join(f"<th>{column}</th>" for column in columns)
-    return f"<table class='mini-table'><thead><tr>{headers}</tr></thead><tbody>{''.join(rows)}</tbody></table>"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2681,91 +2674,6 @@ STRICT RULES:
 
 
 
-@st.fragment
-def render_copilot_console(candidates: pd.DataFrame, roles: pd.DataFrame) -> None:
-    st.divider()
-
-    if "copilot_open" not in st.session_state:
-        st.session_state["copilot_open"] = False
-    if "copilot_messages" not in st.session_state:
-        st.session_state["copilot_messages"] = [
-            {
-                "role": "assistant",
-                "content": "Hi! I can help with candidates, interviews, skill gaps, emails, reports, JD analysis, and recruitment insights. What do you need?",
-            }
-        ]
-
-    if not st.session_state["copilot_open"]:
-        st.markdown(
-            clean_html(
-                """
-            <div class="chatbot-launcher">
-                <div class="chatbot-launcher-left">
-                    <div class="chatbot-icon"></div>
-                    <div>
-                        <div class="chatbot-launcher-title">Ask the AI Copilot</div>
-                        <div class="chatbot-launcher-copy">Open a chat about jobs, candidates, skill gaps, emails, or reports.</div>
-                    </div>
-                </div>
-            </div>
-            """
-            ),
-            unsafe_allow_html=True,
-        )
-        if st.button("Open AI Copilot", key="open-copilot", use_container_width=True):
-            st.session_state["copilot_open"] = True
-            st.rerun()
-        return
-
-    header_cols = st.columns([1, .16])
-    with header_cols[1]:
-        if st.button("Close", key="close-copilot", use_container_width=True):
-            st.session_state["copilot_open"] = False
-            st.rerun()
-
-    messages_html = ""
-    for message in st.session_state["copilot_messages"]:
-        role = "user" if message["role"] == "user" else "assistant"
-        content = escape(message["content"]).replace("\n", "<br>")
-        messages_html += f'<div class="chat-message {role}">{content}</div>'
-
-    st.markdown(
-        clean_html(
-            f"""
-        <div class="chatbot-panel">
-            <div class="chatbot-header">
-                <div>
-                    <div class="chatbot-title">AI Copilot</div>
-                    <div class="chatbot-status">● Online for this workspace</div>
-                </div>
-                <div class="chatbot-icon"></div>
-            </div>
-            <div class="chatbot-body">
-                {messages_html}
-            </div>
-        </div>
-        <div class="chatbot-input-note">Ask about candidates, jobs, skill gaps, emails, reports, or recruitment insights.</div>
-        """
-        ),
-        unsafe_allow_html=True,
-    )
-
-    with st.form("copilot-chat-form", clear_on_submit=True, border=False):
-        prompt = st.text_input(
-            "Message the assistant",
-            placeholder="Which city has the strongest candidate pipeline?",
-            label_visibility="collapsed",
-        )
-        submitted = st.form_submit_button("Send →")
-
-    if submitted and prompt.strip():
-        st.session_state["copilot_messages"].append({"role": "user", "content": prompt.strip()})
-        st.session_state["copilot_messages"].append(
-            {
-                "role": "assistant",
-                "content": build_copilot_reply(prompt.strip(), candidates, roles),
-            }
-        )
 
 
 
