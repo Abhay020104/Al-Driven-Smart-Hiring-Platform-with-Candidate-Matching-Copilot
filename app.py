@@ -310,11 +310,11 @@ def render_quick_actions() -> None:
         unsafe_allow_html=True,
     )
     buttons = st.columns(4)
-    labels = ["Open JD Analyser", "Open Resume AI", "Recruitment Insights", "Generate Report"]
+    labels = ["Open JD Analysis", "Open Resume Parsing", "Recruitment Analytics", "Generate Report"]
     messages = [
-        "Go to JD Analyser in the sidebar.",
-        "Go to Resume AI in the sidebar.",
-        "Go to Recruitment Insights in the sidebar.",
+        "Go to JD Analysis in the sidebar.",
+        "Go to Resume Parsing in the sidebar.",
+        "Go to Recruitment Analytics in the sidebar.",
         "Go to Reports in the sidebar.",
     ]
     for index, (column, label, message) in enumerate(zip(buttons, labels, messages)):
@@ -470,7 +470,7 @@ def render_command_center(roles: pd.DataFrame, candidates: pd.DataFrame) -> None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PAGE: FIND CANDIDATES (enhanced with Ranking + Comparison)
+# PAGE: CANDIDATE RANKING (enhanced with Ranking + Comparison)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def render_candidate_card(row: pd.Series) -> None:
@@ -516,7 +516,7 @@ def compute_rank_score(row: pd.Series) -> float:
 
 @st.fragment
 def render_candidate_match(roles: pd.DataFrame, candidates: pd.DataFrame) -> None:
-    st.title("Find Candidates")
+    st.title("Candidate Ranking")
     st.caption("Choose a job and the AI assistant will show the strongest matches first.")
 
     role_options = ["All jobs"] + roles["Role"].tolist()
@@ -725,7 +725,7 @@ Return ONLY a concise 2-sentence summary.
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PAGE: INTERVIEWS (enhanced with Hiring Recommendation)
+# PAGE: INTERVIEW ASSISTANCE (enhanced with Hiring Recommendation)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_hiring_recommendation(row) -> tuple[str, str, str]:
@@ -792,7 +792,7 @@ def send_interview_email(sender_email: str, sender_password: str, candidate_name
 
 @st.fragment
 def render_interview_desk(candidates: pd.DataFrame, roles: pd.DataFrame = None) -> None:
-    st.title("Interviews")
+    st.title("Interview Assistance")
     st.caption("Plan interviews, prepare questions, get AI hiring recommendations, and collect feedback.")
 
     # Load roles if not passed
@@ -1323,7 +1323,7 @@ Output ONLY the questions as a numbered markdown list. Do not include introducto
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PAGE: JD ANALYSER (NEW)
+# PAGE: JD ANALYSIS (NEW)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -1510,7 +1510,7 @@ Summary: {candidate.get('Summary', '')}
 
 @st.fragment
 def render_jd_analyser(roles: pd.DataFrame, candidates: pd.DataFrame) -> None:
-    st.title("📋 JD Analyser & Creator")
+    st.title("📋 JD Analysis & Creator")
     st.caption("Analyse existing Job Descriptions or use AI to create and publish new ones.")
     
     tab_analyse, tab_create, tab_stats = st.tabs(["🔍 Analyse JD", "✨ Create & Publish JD", "📈 JD Performance & Stats"])
@@ -1677,7 +1677,7 @@ def render_jd_analyser(roles: pd.DataFrame, candidates: pd.DataFrame) -> None:
 
 @st.fragment
 def render_resume_ai(roles: "pd.DataFrame", candidates: "pd.DataFrame") -> None:
-    st.title("\U0001f4c4 Resume AI")
+    st.title("\U0001f4c4 Resume Parsing")
     st.caption("Match resumes against a job description, get an AI hiring recommendation, and chat about any candidate profile.")
 
     tab_match = st.tabs(["\U0001f50d Resume Matcher"])[0]
@@ -1891,14 +1891,19 @@ def render_resume_ai(roles: "pd.DataFrame", candidates: "pd.DataFrame") -> None:
 
 @st.fragment
 def render_recruitment_insights(roles: pd.DataFrame, candidates: pd.DataFrame) -> None:
-    st.title("📊 Recruitment Insights")
-    st.caption("Deep-dive into your recruitment pipeline health, skill gaps, and process efficiency.")
+    st.title("📊 Recruitment Analytics")
+    st.caption("Overview dashboard, pipeline health, skill gaps, and process efficiency.")
 
-    tab_insight, tab_gap, tab_recruit = st.tabs([
+    tab_overview, tab_insight, tab_gap, tab_recruit = st.tabs([
+        "🏠 Overview",
         "🔭 Talent Overview",
         "🎯 Skill Gap Analyser",
         "🔬 Recruitment Analyser",
     ])
+
+    # ── Tab 0: Overview (Command Center) ─────────────────────────────────────
+    with tab_overview:
+        render_command_center(roles, candidates)
 
     # ── Tab 1: Talent Overview ───────────────────────────────────────────────
     with tab_insight:
@@ -3102,19 +3107,19 @@ def render_sidebar() -> str:
     st.sidebar.title("AI-Driven Smart Hiring Platform Copilot")
 
     pages = [
-        "🏠 Overview",
-        "📋 JD Analyser",
-        "🔍 Find Candidates",
-        "📄 Resume AI",
-        "🗓️ Interviews",
+        "📄 Resume Parsing",
+        "📋 JD Analysis",
+        "🔍 Candidate Ranking",
+        "🗓️ Interview Assistance",
         "🎓 Onboarding",
-        "📊 Recruitment Insights",
+        "📊 Recruitment Analytics",
         "📧 Communications",
         "📑 Reports",
         "🤖 Chat with AI",
     ]
 
-    page = st.sidebar.radio("Main menu", pages, label_visibility="collapsed")
+    default_index = pages.index("📊 Recruitment Analytics")
+    page = st.sidebar.radio("Main menu", pages, index=default_index, label_visibility="collapsed")
 
     st.sidebar.divider()
     
@@ -3320,20 +3325,18 @@ def main() -> None:
 
     # ── Recruiter pages ───────────────────────────────────────
 
-    if page == "🏠 Overview":
-        render_command_center(roles, candidates)
-    elif page == "🔍 Find Candidates":
-        render_candidate_match(roles, candidates)
-    elif page == "📋 JD Analyser":
-        render_jd_analyser(roles, candidates)
-    elif page == "📄 Resume AI":
+    if page == "📊 Recruitment Analytics":
+        render_recruitment_insights(roles, candidates)
+    elif page == "📄 Resume Parsing":
         render_resume_ai(roles, candidates)
-    elif page == "🗓️ Interviews":
+    elif page == "📋 JD Analysis":
+        render_jd_analyser(roles, candidates)
+    elif page == "🔍 Candidate Ranking":
+        render_candidate_match(roles, candidates)
+    elif page == "🗓️ Interview Assistance":
         render_interview_desk(candidates, roles)
     elif page == "🎓 Onboarding":
         render_onboarding(roles, candidates)
-    elif page == "📊 Recruitment Insights":
-        render_recruitment_insights(roles, candidates)
     elif page == "📧 Communications":
         render_communications(candidates)
     elif page == "📑 Reports":
