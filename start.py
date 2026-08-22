@@ -70,7 +70,6 @@ def kill_port(port: int) -> None:
         pass
 
 
-
 def main():
     print("=" * 60)
     print("  AI-Driven Smart Hiring Platform Copilot")

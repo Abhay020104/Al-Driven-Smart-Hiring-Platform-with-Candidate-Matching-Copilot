@@ -12,6 +12,11 @@ import dotenv
 import pandas as pd
 import requests
 import streamlit as st
+import plotly.graph_objects as go
+import streamlit.components.v1 as components
+import smtplib
+from email.message import EmailMessage
+
 
 dotenv.load_dotenv()
 if "saved_email" not in st.session_state:
@@ -140,7 +145,6 @@ def inject_css() -> None:
     st.markdown(f"<style>\n{css}\n</style>", unsafe_allow_html=True)
 
 
-import streamlit.components.v1 as components
 
 
 def inject_loader() -> None:
@@ -766,10 +770,6 @@ Return ONLY the reasoning text. No JSON, no markdown.
 
 
 
-import smtplib
-from email.message import EmailMessage
-
-
 def send_interview_email(sender_email: str, sender_password: str, candidate_name: str, candidate_email: str, date_str: str, time_str: str, meet_link: str) -> tuple[bool, str]:
     if not sender_email or not sender_password or not candidate_email:
         return False, "Missing credentials or candidate email"
@@ -1391,23 +1391,60 @@ _SKILL_KEYWORDS = ["Python", "Java", "C++", "JavaScript", "React", "Node.js", "S
 
 def parse_resume_text(text: str) -> dict:
     """Extract skills, experience and info from raw resume text."""
+    import re
     text_lower = text.lower()
     found_skills = [s for s in _SKILL_KEYWORDS if s.lower() in text_lower]
 
-    # Experience — ASCII-only guard prevents Unicode superscripts (², ³, etc.) from crashing int()
+    # Experience — look for patterns like "5 years", "3+ yrs", "2 years of experience"
+    # This avoids picking up random numbers (dates, phone digits, zip codes, etc.)
     exp_years = 0
-    for part in text.split():
-        p = part.strip(".,+'\"")
-        if p.isascii() and p.isdigit():
-            v = int(p)
-            if 1 <= v <= 25:
-                exp_years = max(exp_years, v)
+    exp_patterns = [
+        r'(\d{1,2})\+?\s*(?:years?|yrs?)\.?\s*(?:of)?\s*(?:experience|exp|work)',
+        r'(\d{1,2})\+?\s*(?:years?|yrs?)\.?\s*(?:in|of|professional|industry|relevant|total)',
+        r'experience\s*(?:of)?\s*(?::|–|-)?\s*(\d{1,2})\+?\s*(?:years?|yrs?)',
+        r'(\d{1,2})\+?\s*(?:years?|yrs?)',
+    ]
+    for pattern in exp_patterns:
+        matches = re.findall(pattern, text_lower)
+        if matches:
+            for m in matches:
+                v = int(m)
+                if 0 <= v <= 40:
+                    exp_years = max(exp_years, v)
+            if exp_years > 0:
+                break  # Use the most specific pattern that matched
 
-    # Education keywords
-    edu_map = {"phd": "PhD", "m.tech": "M.Tech", "mtech": "M.Tech", "m.s.": "M.S.",
-                "mba": "MBA", "b.tech": "B.Tech", "btech": "B.Tech", "b.e.": "B.E.", "be ": "B.E."}
+    # Education keywords — comprehensive list covering various formats
+    edu_map = {
+        # Doctoral
+        "ph.d": "PhD", "phd": "PhD", "doctorate": "PhD", "doctor of philosophy": "PhD",
+        # Master's
+        "m.tech": "M.Tech", "mtech": "M.Tech", "master of technology": "M.Tech",
+        "m.s.": "M.S.", "m.s ": "M.S.", "master of science": "M.S.",
+        "m.sc": "M.Sc", "msc": "M.Sc", "master of science": "M.Sc",
+        "m.e.": "M.E.", "m.e ": "M.E.", "master of engineering": "M.E.",
+        "mba": "MBA", "m.b.a": "MBA", "master of business": "MBA",
+        "mca": "MCA", "m.c.a": "MCA", "master of computer applications": "MCA",
+        "m.a.": "M.A.", "m.a ": "M.A.", "master of arts": "M.A.",
+        "master's": "Master's", "masters": "Master's", "post graduate": "Post Graduate",
+        "postgraduate": "Post Graduate", "pg ": "Post Graduate", "pg.": "Post Graduate",
+        # Bachelor's
+        "b.tech": "B.Tech", "btech": "B.Tech", "bachelor of technology": "B.Tech",
+        "b.e.": "B.E.", "b.e ": "B.E.", "bachelor of engineering": "B.E.",
+        "b.sc": "B.Sc", "bsc": "B.Sc", "bachelor of science": "B.Sc",
+        "bca": "BCA", "b.c.a": "BCA", "bachelor of computer applications": "BCA",
+        "b.a.": "B.A.", "b.a ": "B.A.", "bachelor of arts": "B.A.",
+        "b.com": "B.Com", "bcom": "B.Com", "bachelor of commerce": "B.Com",
+        "b.b.a": "BBA", "bba": "BBA", "bachelor of business": "BBA",
+        "bachelor's": "Bachelor's", "bachelors": "Bachelor's",
+        "undergraduate": "Undergraduate", "ug ": "Undergraduate",
+        # Diploma / Others
+        "diploma": "Diploma", "12th": "12th Grade", "10th": "10th Grade",
+        "high school": "High School", "intermediate": "Intermediate",
+    }
     detected_edu = "Not specified"
-    for key, val in edu_map.items():
+    # Check longer keys first to get the most specific match
+    for key, val in sorted(edu_map.items(), key=lambda x: -len(x[0])):
         if key in text_lower:
             detected_edu = val
             break
@@ -1675,219 +1712,367 @@ def render_jd_analyser(roles: pd.DataFrame, candidates: pd.DataFrame) -> None:
                 }
             )
 
+def compute_radar_scores(resume_data: dict, score_res: dict) -> dict:
+    """Produce 5 normalised scores (0-100) for a radar/web chart."""
+    # Technical Skills — directly from skill coverage
+    technical = score_res.get("coverage", 0)
+
+    # Experience — scale: 0yr=10, 3yr=40, 5yr=60, 8yr=80, 10+=95
+    yrs = resume_data.get("exp_years", 0)
+    experience = min(95, max(10, int(yrs * 9.5))) if yrs else 10
+
+    # Education — degree-level mapping
+    edu = (resume_data.get("education") or "").lower()
+    edu_scores = {"phd": 95, "m.tech": 85, "m.s.": 85, "mba": 80, "b.tech": 70, "b.e.": 70}
+    education = next((v for k, v in edu_scores.items() if k in edu), 40)
+
+    # Certifications — count-based: 0=15, 1=45, 2=65, 3+=85
+    n_certs = len(resume_data.get("certifications", []))
+    certifications = min(95, 15 + n_certs * 30) if n_certs < 3 else 85 + min(10, (n_certs - 3) * 5)
+
+    # Soft Skills — check for communication / leadership keywords
+    skills_lower = [s.lower() for s in resume_data.get("skills", [])]
+    soft_kw = ["communication", "leadership", "teamwork", "management", "agile", "scrum", "mentoring"]
+    soft_hits = sum(1 for kw in soft_kw if any(kw in sk for sk in skills_lower))
+    soft_skills = min(95, 20 + soft_hits * 18)
+
+    return {
+        "Technical Skills": technical,
+        "Experience": experience,
+        "Education": education,
+        "Certifications": certifications,
+        "Soft Skills": soft_skills,
+    }
+
+
 @st.fragment
 def render_resume_ai(roles: "pd.DataFrame", candidates: "pd.DataFrame") -> None:
     st.title("\U0001f4c4 Resume Parsing")
-    st.caption("Match resumes against a job description, get an AI hiring recommendation, and chat about any candidate profile.")
+    st.caption("Upload multiple resumes, match them against a job description, and get individual AI analysis reports with visual insights.")
 
-    tab_match = st.tabs(["\U0001f50d Resume Matcher"])[0]
-
-    with tab_match:
-        st.subheader("Match Candidate to Role")
-        
-        c1, c2 = st.columns(2)
-        with c1:
-            jd_source = st.radio("Match against", ["Existing Job Profile", "Upload JD from device"], horizontal=True, key="jd-source")
-        if jd_source == "Existing Job Profile":
-            selected_role_match = st.selectbox("Select target role", roles["Role"].tolist(), key="rm-role")
-            role_row = roles[roles["Role"] == selected_role_match].iloc[0]
-            st.markdown(f"**Required Skills for {selected_role_match}:** {role_row['Required Skills']}")
-            st.markdown(f"**Minimum Experience:** {role_row['Experience Min']} years")
-        else:
-            uploaded_jd = st.file_uploader("Upload JD (TXT or PDF)", type=["txt", "pdf"], key="resume-jd-upload")
-            if uploaded_jd is not None:
-                if uploaded_jd.type == "text/plain":
-                    jd_text = uploaded_jd.read().decode("utf-8", errors="ignore")
-                else:
-                    jd_text = uploaded_jd.read().decode("latin-1", errors="ignore")
-                    jd_text = "".join(c for c in jd_text if c.isprintable() or c in "\n\r\t")
-                st.success("JD uploaded successfully!")
-                selected_role_match = "Custom Uploaded JD"
-                role_row = pd.Series({"Role": "Custom Uploaded JD", "Required Skills": jd_text[:500] + "...", "Experience Min": 0})
+    # ── Step 1: Select the target role / JD ────────────────────────────────────
+    st.subheader("\U0001f3af Step 1 — Select Target Role")
+    jd_source = st.radio(
+        "Match against",
+        ["Existing Job Profile", "Upload JD from device"],
+        horizontal=True,
+        key="jd-source",
+    )
+    if jd_source == "Existing Job Profile":
+        selected_role_match = st.selectbox("Select target role", roles["Role"].tolist(), key="rm-role")
+        role_row = roles[roles["Role"] == selected_role_match].iloc[0]
+        st.markdown(f"**Required Skills for {selected_role_match}:** {role_row['Required Skills']}")
+        st.markdown(f"**Minimum Experience:** {role_row['Experience Min']} years")
+    else:
+        uploaded_jd = st.file_uploader("Upload JD (TXT or PDF)", type=["txt", "pdf"], key="resume-jd-upload")
+        if uploaded_jd is not None:
+            if uploaded_jd.type == "text/plain":
+                jd_text = uploaded_jd.read().decode("utf-8", errors="ignore")
             else:
-                st.info("Please upload a JD to continue.")
-                st.stop()
+                jd_text = uploaded_jd.read().decode("latin-1", errors="ignore")
+                jd_text = "".join(c for c in jd_text if c.isprintable() or c in "\n\r\t")
+            st.success("JD uploaded successfully!")
+            selected_role_match = "Custom Uploaded JD"
+            role_row = pd.Series({"Role": "Custom Uploaded JD", "Required Skills": jd_text[:500] + "...", "Experience Min": 0})
+        else:
+            st.info("Please upload a JD to continue.")
+            st.stop()
 
-        source_mode = st.radio(
-            "Select Resume Source",
-            ["\U0001f4c1 Upload from device", "\U0001f464 Existing candidate profile"],
-            horizontal=True,
-            key="resume-source-mode",
-            label_visibility="collapsed",
+    st.divider()
+
+    # ── Step 2: Resume source ─────────────────────────────────────────────────
+    st.subheader("\U0001f4e4 Step 2 — Submit Resumes")
+    source_mode = st.radio(
+        "Select Resume Source",
+        ["\U0001f4c1 Upload from device (multiple)", "\U0001f464 Existing candidate profile"],
+        horizontal=True,
+        key="resume-source-mode",
+        label_visibility="collapsed",
+    )
+
+    # Will hold list of {name, resume_data} dicts
+    resume_entries: list[dict] = []
+
+    if source_mode == "\U0001f4c1 Upload from device (multiple)":
+        uploaded_files = st.file_uploader(
+            "Upload resumes (TXT or PDF) — you can select multiple files",
+            type=["txt", "pdf"],
+            accept_multiple_files=True,
+            key="resume-upload-multi",
         )
-
-        resume_data = None
-        candidate_name_for_match = "Unknown"
-
-        if source_mode == "\U0001f4c1 Upload from device":
-            uploaded_file = st.file_uploader(
-                "Upload resume (TXT or PDF)",
-                type=["txt", "pdf"],
-                key="resume-upload",
-            )
-            if uploaded_file is not None:
-                if uploaded_file.type == "text/plain":
-                    raw_text = uploaded_file.read().decode("utf-8", errors="ignore")
+        if uploaded_files:
+            for uf in uploaded_files:
+                if uf.type == "text/plain":
+                    raw_text = uf.read().decode("utf-8", errors="ignore")
                 else:
-                    raw_text = uploaded_file.read().decode("latin-1", errors="ignore")
+                    raw_text = uf.read().decode("latin-1", errors="ignore")
                     raw_text = "".join(c for c in raw_text if c.isprintable() or c in "\n\r\t")
                 if raw_text.strip():
                     parsed = parse_resume_text(raw_text)
-                    st.session_state["uploaded_resume_data"] = parsed
-                    st.session_state["uploaded_resume_name"] = uploaded_file.name
-                    st.success(f"\u2705 Resume uploaded \u2014 {len(parsed['skills'])} skills detected")
-                else:
-                    st.warning("Could not extract text. Try a plain-text .txt file.")
-
-            if "uploaded_resume_data" in st.session_state:
-                resume_data = st.session_state["uploaded_resume_data"]
-                raw_fname = st.session_state.get("uploaded_resume_name", "Uploaded Resume")
-                candidate_name_for_match = raw_fname
-                st.caption(f"\U0001f4c4 Using: {raw_fname} | Skills found: {len(resume_data['skills'])}")
-
-                # ── Save to Candidate Pool ────────────────────────────────────
-                already_saved = st.session_state.get("uploaded_resume_saved") == raw_fname
-                if not already_saved:
-                    with st.expander("\U0001f4be Save this candidate to the pool", expanded=True):
-                        st.caption("Fill in the details and save — this candidate will then appear across Find Candidates, Interviews, Rankings, and all other pages.")
-                        sc1, sc2 = st.columns(2)
-                        with sc1:
-                            save_name = st.text_input(
-                                "Candidate name \u2605",
-                                value=raw_fname.rsplit(".", 1)[0].replace("_", " ").replace("-", " ").title(),
-                                key="save-cand-name",
-                                placeholder="Full name",
-                            )
-                            save_location = st.text_input(
-                                "Location",
-                                value="",
-                                key="save-cand-location",
-                                placeholder="e.g. Bengaluru",
-                            )
-                        with sc2:
-                            save_role = st.selectbox(
-                                "Applying for role",
-                                roles["Role"].tolist(),
-                                key="save-cand-role",
-                            )
-                            save_stage = st.selectbox(
-                                "Current stage",
-                                ["Applied", "Screening", "Technical interview", "Manager interview", "Offer discussion"],
-                                key="save-cand-stage",
-                            )
-
-                        st.divider()
-                        skill_preview = ", ".join(resume_data.get("skills", [])[:8]) or "No skills detected"
-                        st.caption(f"\U0001f9e0 Skills detected: {skill_preview}")
-                        st.caption(f"\U0001f4bc Experience detected: {resume_data.get('exp_years', 0)} years | Education: {resume_data.get('education', 'Not specified')}")
-
-                        if st.button("\u2795 Add to Candidate Pool", key="save-cand-btn", use_container_width=True, type="primary"):
-                            if not save_name.strip():
-                                st.warning("\u26a0\ufe0f Please enter the candidate's name.")
-                            else:
-                                new_row = {
-                                    "Candidate": save_name.strip(),
-                                    "Role": save_role,
-                                    "Location": save_location.strip() or "Not specified",
-                                    "Experience": resume_data.get("exp_years", 0),
-                                    "Match": 75,
-                                    "Stage": save_stage,
-                                    "Availability": "To be confirmed",
-                                    "Salary Fit": "To be confirmed",
-                                    "Risk": "Medium",
-                                    "Skills": ", ".join(resume_data.get("skills", [])) or "See resume",
-                                    "Source": "Resume Upload",
-                                    "Last Touch": "Today",
-                                    "Education": resume_data.get("education", "Not specified"),
-                                    "Certifications": ", ".join(resume_data.get("certifications", [])) or "None listed",
-                                    "Summary": (
-                                        f"{resume_data.get('exp_years', '?')} yrs experience. "
-                                        f"Uploaded via Resume AI. "
-                                        f"Skills: {', '.join(resume_data.get('skills', [])[:5])}."
-                                    ),
-                                }
-                                new_df = pd.DataFrame([new_row])
-                                st.session_state["candidates"] = pd.concat(
-                                    [st.session_state["candidates"], new_df], ignore_index=True
-                                )
-                                st.session_state["uploaded_resume_saved"] = raw_fname
-                                candidate_name_for_match = save_name.strip()
-                                st.success(f"\u2705 {save_name.strip()} added to the candidate pool! They now appear in Find Candidates, Interviews, Rankings, and all reports.")
-                                # st.rerun()  # Disabled to prevent full screen reload
-                else:
-                    saved_name = st.session_state["candidates"][
-                        st.session_state["candidates"]["Source"] == "Resume Upload"
-                    ]["Candidate"].tolist()
-                    saved_name_str = saved_name[-1] if saved_name else "Candidate"
-                    st.success(f"\u2705 {saved_name_str} is already in the candidate pool. You can find them in Find Candidates.")
-
-        else:
-            selected_cand_name = st.selectbox(
-                "Select existing candidate",
-                candidates["Candidate"].tolist(),
-                key="rm-cand"
-            )
-            cand_row = candidates[candidates["Candidate"] == selected_cand_name].iloc[0]
-            candidate_name_for_match = cand_row["Candidate"]
-            # Convert candidate row to the simple dict structure parse_resume_text outputs
-            resume_data = {
+                    cand_name = uf.name.rsplit(".", 1)[0].replace("_", " ").replace("-", " ").title()
+                    resume_entries.append({"name": cand_name, "resume_data": parsed, "filename": uf.name})
+            if resume_entries:
+                st.success(f"\u2705 {len(resume_entries)} resume(s) uploaded and parsed successfully.")
+            else:
+                st.warning("Could not extract text from the uploaded files. Try plain-text .txt files.")
+    else:
+        selected_cand_name = st.selectbox(
+            "Select existing candidate",
+            candidates["Candidate"].tolist(),
+            key="rm-cand",
+        )
+        cand_row = candidates[candidates["Candidate"] == selected_cand_name].iloc[0]
+        resume_entries.append({
+            "name": cand_row["Candidate"],
+            "resume_data": {
                 "skills": [s.strip() for s in cand_row["Skills"].split(",")],
                 "exp_years": cand_row["Experience"],
                 "education": cand_row.get("Education", "Not specified"),
                 "certifications": [c.strip() for c in cand_row.get("Certifications", "").split(",") if c.strip()],
-            }
-            st.caption(f"\U0001f464 Loaded profile for {selected_cand_name} ({cand_row['Experience']} yrs exp)")
+            },
+            "filename": None,
+            "_cand_row": cand_row,
+        })
+        st.caption(f"\U0001f464 Loaded profile for {selected_cand_name} ({cand_row['Experience']} yrs exp)")
 
-        st.divider()
+    st.divider()
 
-        if resume_data:
-            c_btn1, _ = st.columns([1, 2])
-            with c_btn1:
-                run_match = st.button(f"\u26a1 Score Match for {candidate_name_for_match}", use_container_width=True, type="primary")
+    # ── Step 3: Analyse ───────────────────────────────────────────────────────
+    if not resume_entries:
+        st.info("\u2b06\ufe0f Please upload resumes or select a candidate to begin analysis.")
+        return
 
-            if run_match:
-                with st.spinner("Llama 3.2 is scoring the resume match..."):
-                    score_res = score_resume_vs_role(resume_data, role_row)
+    run_analysis = st.button(
+        f"\u26a1 Analyse {len(resume_entries)} Resume(s)",
+        use_container_width=True,
+        type="primary",
+    )
 
-                st.subheader(f"Match Results: {candidate_name_for_match}")
-                m1, m2, m3 = st.columns(3)
-                m1.metric("Overall Match", f"{score_res['match_score']}%")
-                m2.metric("Skill Coverage", f"{score_res['coverage']}%")
-                m3.metric("Experience", "Pass \u2705" if score_res["exp_ok"] else "Gap \u26a0\ufe0f")
+    # Use session state to persist results across reruns
+    if run_analysis:
+        all_results: list[dict] = []
+        progress_bar = st.progress(0, text="Analysing resumes…")
+        for idx, entry in enumerate(resume_entries):
+            progress_bar.progress(
+                (idx) / len(resume_entries),
+                text=f"Scoring {entry['name']}… ({idx + 1}/{len(resume_entries)})",
+            )
+            score_res = score_resume_vs_role(entry["resume_data"], role_row)
+            radar = compute_radar_scores(entry["resume_data"], score_res)
 
-                st.markdown(f"**Verdict:** <span class='{score_res['v_class']}'>{score_res['verdict']}</span>", unsafe_allow_html=True)
+            # Hiring recommendation
+            rec_input = entry.get("_cand_row")
+            if rec_input is not None:
+                rec_input = rec_input.to_dict()
+            else:
+                rec_input = {
+                    "Candidate": entry["name"],
+                    "Match": score_res["match_score"],
+                    "Risk": "Medium",
+                    "Salary Fit": "Unknown",
+                    "Availability": "Unknown",
+                }
+            verdict_r, css_r, reasoning_r = build_hiring_recommendation(rec_input)
 
-                sc1, sc2 = st.columns(2)
-                with sc1:
-                    st.markdown("**\u2705 Matched Skills:**")
+            all_results.append({
+                "name": entry["name"],
+                "resume_data": entry["resume_data"],
+                "score_res": score_res,
+                "radar": radar,
+                "verdict": verdict_r,
+                "css": css_r,
+                "reasoning": reasoning_r,
+            })
+        progress_bar.progress(1.0, text="Analysis complete!")
+        st.session_state["bulk_resume_results"] = all_results
+
+    # ── Display results ───────────────────────────────────────────────────────
+    all_results = st.session_state.get("bulk_resume_results")
+    if not all_results:
+        return
+
+    st.divider()
+    st.subheader("\U0001f4ca Analysis Dashboard")
+
+    # ── Summary comparison table ──────────────────────────────────────────────
+    summary_rows = []
+    for r in all_results:
+        summary_rows.append({
+            "Candidate": r["name"],
+            "Match %": r["score_res"]["match_score"],
+            "Skill Coverage %": r["score_res"]["coverage"],
+            "Experience": f"{r['resume_data'].get('exp_years', 0)} yrs",
+            "Education": r["resume_data"].get("education", "N/A"),
+            "Verdict": r["score_res"]["verdict"],
+            "Recommendation": r["verdict"],
+        })
+    summary_df = pd.DataFrame(summary_rows).sort_values("Match %", ascending=False).reset_index(drop=True)
+    summary_df.index = summary_df.index + 1  # 1-based ranking
+    summary_df.index.name = "Rank"
+    st.dataframe(
+        summary_df,
+        use_container_width=True,
+        column_config={
+            "Match %": st.column_config.ProgressColumn("Match %", format="%d%%", min_value=0, max_value=100),
+            "Skill Coverage %": st.column_config.ProgressColumn("Coverage %", format="%d%%", min_value=0, max_value=100),
+        },
+    )
+
+    # ── Charts row ────────────────────────────────────────────────────────────
+    chart_col1, chart_col2 = st.columns(2)
+
+    # Bar chart — candidate match scores
+    with chart_col1:
+        st.markdown("##### \U0001f4ca Match Score Comparison")
+        names = [r["name"] for r in all_results]
+        scores = [r["score_res"]["match_score"] for r in all_results]
+        # Assign colours by verdict
+        colors = []
+        for r in all_results:
+            v = r["score_res"]["verdict"]
+            if "Excellent" in v:
+                colors.append("#10b981")
+            elif "Good" in v:
+                colors.append("#3b82f6")
+            elif "Possible" in v:
+                colors.append("#f59e0b")
+            else:
+                colors.append("#ef4444")
+        fig_bar = go.Figure(
+            go.Bar(
+                x=names,
+                y=scores,
+                marker_color=colors,
+                text=[f"{s}%" for s in scores],
+                textposition="outside",
+            )
+        )
+        fig_bar.update_layout(
+            yaxis_title="Match Score %",
+            yaxis_range=[0, 110],
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#e2e8f0"),
+            margin=dict(t=20, b=40, l=40, r=20),
+            height=350,
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+    # Pie / Donut chart — candidate fit distribution (clearer than funnel)
+    with chart_col2:
+        st.markdown("##### \U0001f3af Candidate Fit Distribution")
+        cat_labels = ["\u2705 Excellent Fit", "\U0001f44d Good Fit", "\u26a0\ufe0f Possible Fit", "\u274c Significant Gaps"]
+        cat_keys   = ["Excellent fit", "Good fit \u2014 minor gaps", "Possible fit \u2014 train on gaps", "Significant gaps"]
+        cats = {k: 0 for k in cat_keys}
+        for r in all_results:
+            v = r["score_res"]["verdict"]
+            if v in cats:
+                cats[v] += 1
+        pie_vals   = list(cats.values())
+        pie_colors = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444"]
+        fig_pie = go.Figure(
+            go.Pie(
+                labels=cat_labels,
+                values=pie_vals,
+                hole=0.45,
+                marker=dict(colors=pie_colors, line=dict(color="#1e293b", width=2)),
+                textinfo="label+value",
+                textposition="outside",
+                textfont=dict(size=13),
+                hovertemplate="<b>%{label}</b><br>Count: %{value}<br>Share: %{percent}<extra></extra>",
+                pull=[0.05 if v > 0 else 0 for v in pie_vals],
+            )
+        )
+        total = len(all_results)
+        fig_pie.update_layout(
+            annotations=[dict(text=f"<b>{total}</b><br>Total", x=0.5, y=0.5, font_size=18, font_color="#e2e8f0", showarrow=False)],
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#e2e8f0"),
+            margin=dict(t=20, b=20, l=20, r=20),
+            height=380,
+            showlegend=False,
+        )
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+    st.divider()
+
+    # ── Individual candidate report cards ─────────────────────────────────────
+    st.subheader(f"\U0001f4cb Individual Reports ({len(all_results)} candidates)")
+
+    for idx, r in enumerate(all_results):
+        score_res = r["score_res"]
+        resume_data = r["resume_data"]
+        radar = r["radar"]
+        v_emoji = {"recommend": "\u2705", "waitlist": "\u23f3", "decline": "\u274c"}.get(score_res["v_class"], "")
+
+        with st.expander(f"{v_emoji} {r['name']}  —  Match: {score_res['match_score']}%  |  {score_res['verdict']}", expanded=(idx == 0)):
+            # Metrics row
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Overall Match", f"{score_res['match_score']}%")
+            m2.metric("Skill Coverage", f"{score_res['coverage']}%")
+            m3.metric("Experience", f"{resume_data.get('exp_years', 0)} yrs")
+            m4.metric("Education", resume_data.get("education", "N/A"))
+
+            # Two columns: skills + radar chart
+            left_col, right_col = st.columns([1, 1])
+
+            with left_col:
+                st.markdown("**\u2705 Matched Skills:**")
+                if score_res["matched_skills"]:
                     for s in score_res["matched_skills"]:
                         st.markdown(f"- {s}")
-                with sc2:
-                    st.markdown("**\u274c Missing Skills:**")
+                else:
+                    st.caption("None")
+
+                st.markdown("**\u274c Missing Skills:**")
+                if score_res["missing_skills"]:
                     for s in score_res["missing_skills"]:
                         st.markdown(f"- {s}")
-
-                st.divider()
-                st.subheader("Hiring Recommendation")
-                
-                if source_mode == "\U0001f464 Existing candidate profile":
-                    rec_input = cand_row.to_dict()
                 else:
-                    rec_input = {
-                        "Candidate": candidate_name_for_match,
-                        "Match": score_res["match_score"],
-                        "Risk": "Medium",
-                        "Salary Fit": "Unknown",
-                        "Availability": "Unknown"
-                    }
-                
-                with st.spinner("Llama 3.2 is generating a hiring recommendation..."):
-                    verdict_r, css_r, reasoning_r = build_hiring_recommendation(rec_input)
-                
-                st.markdown(f"<h3 class='{css_r}'>{verdict_r}</h3>", unsafe_allow_html=True)
-                st.info(reasoning_r)
-        else:
-            st.info("\u2b06\ufe0f Please upload a resume or select a candidate to see the match score.")
+                    st.caption("None")
+
+                certs = resume_data.get("certifications", [])
+                if certs:
+                    st.markdown(f"**\U0001f3c5 Certifications:** {', '.join(certs)}")
+
+            with right_col:
+                # Radar / Web chart
+                categories = list(radar.keys())
+                values = list(radar.values())
+                # Close the polygon
+                categories_closed = categories + [categories[0]]
+                values_closed = values + [values[0]]
+                fig_radar = go.Figure()
+                fig_radar.add_trace(go.Scatterpolar(
+                    r=values_closed,
+                    theta=categories_closed,
+                    fill="toself",
+                    fillcolor="rgba(99, 102, 241, 0.25)",
+                    line=dict(color="#818cf8", width=2),
+                    marker=dict(size=6, color="#818cf8"),
+                    name=r["name"],
+                ))
+                fig_radar.update_layout(
+                    polar=dict(
+                        bgcolor="rgba(0,0,0,0)",
+                        radialaxis=dict(visible=True, range=[0, 100], showticklabels=True, tickfont=dict(size=10, color="#1e293b")),
+                        angularaxis=dict(tickfont=dict(size=12, color="#1e293b", weight="bold")),
+                    ),
+                    showlegend=False,
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#e2e8f0"),
+                    margin=dict(t=30, b=30, l=50, r=50),
+                    height=320,
+                )
+                st.plotly_chart(fig_radar, use_container_width=True, key=f"radar-{idx}")
+
+            # Hiring recommendation
+            st.divider()
+            st.markdown(f"**Hiring Recommendation:**")
+            st.markdown(f"<h4 class='{r['css']}'>{r['verdict']}</h4>", unsafe_allow_html=True)
+            st.info(r["reasoning"])
 
 @st.fragment
 def render_recruitment_insights(roles: pd.DataFrame, candidates: pd.DataFrame) -> None:

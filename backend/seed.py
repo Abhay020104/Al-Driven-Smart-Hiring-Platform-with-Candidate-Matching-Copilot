@@ -210,5 +210,3 @@ def seed_database(db: Session) -> None:
         ]
         db.add_all(candidates)
         db.commit()
-
-
